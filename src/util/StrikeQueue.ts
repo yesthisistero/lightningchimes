@@ -88,7 +88,6 @@ export class StrikeQueue {
       if (!strike) break;
 
       this.lastEmitTime = Date.now();
-      this.activeVoices++;
       await this.onStrike(strike);
       // Note: the audio engine should call noteVoiceEnd() when the voice stops
     }
