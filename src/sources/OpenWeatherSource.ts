@@ -88,6 +88,9 @@ export class OpenWeatherSource implements IDataSource {
     isRealtime:   false,  // polling, not push
   };
 
+  /** Called each time a poll fires, with the interval in ms. Wire up for UI countdowns. */
+  onPollTick?: (intervalMs: number) => void;
+
   private listeners: Array<(s: LightningStrike) => void> = [];
   private _connected = false;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -121,12 +124,12 @@ export class OpenWeatherSource implements IDataSource {
   async disconnect(): Promise<void> {
     if (this.pollTimer) clearInterval(this.pollTimer);
     this.pollTimer = null;
-    // Cancel all pending scheduled playbacks
     for (const t of this.pendingTimers) clearTimeout(t);
     this.pendingTimers = [];
     this._connected = false;
     this.lastFetchTime = null;
     this.seenIds.clear();
+    this.onPollTick = undefined;
   }
 
   onStrike(cb: (s: LightningStrike) => void)  { this.listeners.push(cb); }
@@ -139,6 +142,7 @@ export class OpenWeatherSource implements IDataSource {
   private async fetchAndSchedule(
     lat: number, lon: number, radius: number, apiKey: string
   ): Promise<void> {
+    this.onPollTick?.(this.intervalMs);
     const now      = new Date();
     // First fetch: look back one full interval; subsequent: overlap by 5s to avoid gaps
     const lookback = this.lastFetchTime

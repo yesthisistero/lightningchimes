@@ -42,6 +42,10 @@ app.innerHTML = `
     <section class="panel" id="source-panel">
       <h2>Data Source</h2>
       <div id="source-selector"></div>
+      <div id="poll-countdown" class="hidden">
+        <div class="poll-bar-track"><div id="poll-bar"></div></div>
+        <p class="poll-hint">Keep the interval at 120 s or above — at 120 s you use ~720 of the 1&nbsp;000 free daily API calls, leaving comfortable headroom.</p>
+      </div>
     </section>
 
     <section class="panel" id="sound-panel">
@@ -199,6 +203,9 @@ const selector = new SourceSelector(
       setStatus('connected', `Connected · ${activeSource.config.label}`);
       Settings.save({ lastSourceId: sourceId, centerLat, centerLon });
       Settings.setSourceSettings(sourceId, sourceSettings);
+      if (sourceId === 'openweather') {
+        (sources['openweather'] as OpenWeatherSource).onPollTick = animatePollBar;
+      }
     } catch (e) {
       setStatus('error', `Connection failed: ${(e as Error).message}`);
       activeSource = null;
@@ -215,8 +222,38 @@ const selector = new SourceSelector(
     health.reset();
     updateHealthDisplay();
     setStatus('disconnected', 'Disconnected');
+    resetPollBar();
   }
 );
+
+// --- Poll countdown (OpenWeather only) ---
+const pollCountdownEl = document.getElementById('poll-countdown')!;
+const pollBarEl       = document.getElementById('poll-bar') as HTMLElement;
+
+function showPollCountdown(show: boolean) {
+  pollCountdownEl.classList.toggle('hidden', !show);
+}
+
+function animatePollBar(intervalMs: number) {
+  // Snap to full width with no animation, then start a linear countdown to 0
+  pollBarEl.style.transition = 'none';
+  pollBarEl.style.width = '100%';
+  void pollBarEl.offsetWidth; // force reflow so the snap registers before the transition
+  pollBarEl.style.transition = `width ${intervalMs / 1000}s linear`;
+  pollBarEl.style.width = '0%';
+}
+
+function resetPollBar() {
+  pollBarEl.style.transition = 'none';
+  pollBarEl.style.width = '100%';
+}
+
+// Show/hide when the source dropdown changes
+document.getElementById('source-select')!.addEventListener('change', (e) => {
+  const val = (e.target as HTMLSelectElement).value;
+  showPollCountdown(val === 'openweather');
+  if (val !== 'openweather') resetPollBar();
+});
 
 // --- Strike log ---
 const log = new StrikeLog(document.getElementById('strike-log')!);
@@ -230,6 +267,9 @@ const scaleSelect    = document.getElementById('scale-select')   as HTMLSelectEl
 const rootSelect     = document.getElementById('root-select')    as HTMLSelectElement;
 const octavesSelect  = document.getElementById('octaves-select') as HTMLSelectElement;
 const reverbSelect   = document.getElementById('reverb-select')  as HTMLSelectElement;
+
+// Initial poll countdown visibility
+showPollCountdown(saved.lastSourceId === 'openweather');
 
 volumeSlider.value  = String(saved.volume);
 volumeLabel.textContent = `${Math.round(saved.volume * 100)}%`;
