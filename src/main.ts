@@ -157,7 +157,7 @@ app.innerHTML = `
         <h2>Map</h2>
         <button id="heatmap-toggle" class="btn-toggle" aria-pressed="false">Heatmap</button>
       </div>
-      <p class="panel-hint">Drag the blue pin to move the centre point. Reconnect to apply the new position.</p>
+      <p class="panel-hint">Click anywhere on the map to set the centre point. Reconnect to apply.</p>
       <div id="strike-map"></div>
     </section>
 
@@ -201,6 +201,9 @@ const selector = new SourceSelector(
       Settings.setSourceSettings(sourceId, sourceSettings);
       if (sourceId === 'openweather') {
         (sources['openweather'] as OpenWeatherSource).onPollTick = animatePollBar;
+        strikeMap.setRadius(Number(sourceSettings.radius ?? 300));
+      } else {
+        strikeMap.setRadius(null);
       }
     } catch (e) {
       setStatus('error', `Connection failed: ${(e as Error).message}`);
@@ -217,6 +220,7 @@ const selector = new SourceSelector(
     selector.setConnected(null);
     health.reset();
     updateHealthDisplay();
+    strikeMap.setRadius(null);
     setStatus('disconnected', 'Disconnected');
     resetPollBar();
   }

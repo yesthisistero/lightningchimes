@@ -353,34 +353,34 @@ input[type="range"]::-webkit-slider-thumb {
   border: none !important;
 }
 
-/* Draggable centre pin */
-.center-pin-ring {
-  width: 28px;
-  height: 28px;
-  border: 2px solid #4fc3f7;
-  border-radius: 50%;
-  background: rgba(79, 195, 247, 0.15);
-  box-shadow: 0 0 12px rgba(79, 195, 247, 0.45), inset 0 0 6px rgba(79, 195, 247, 0.1);
-  cursor: grab;
+/* Centre pin — small cross */
+.center-crosshair {
   position: relative;
+  width: 16px;
+  height: 16px;
 }
-/* Cross-hair lines */
-.center-pin-ring::before,
-.center-pin-ring::after {
+.center-crosshair::before,
+.center-crosshair::after {
   content: '';
   position: absolute;
-  background: rgba(79, 195, 247, 0.6);
+  background: #4fc3f7;
+  border-radius: 1px;
 }
-.center-pin-ring::before {
-  width: 1px; height: 10px;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
+.center-crosshair::before {
+  /* horizontal arm */
+  width: 100%; height: 1.5px;
+  top: 50%; left: 0;
+  transform: translateY(-50%);
 }
-.center-pin-ring::after {
-  width: 10px; height: 1px;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
+.center-crosshair::after {
+  /* vertical arm */
+  width: 1.5px; height: 100%;
+  left: 50%; top: 0;
+  transform: translateX(-50%);
 }
+
+/* Crosshair cursor over the whole map — hints that clicking moves the centre */
+#strike-map { cursor: crosshair; }
 
 /* Leaflet attribution — reduce visual weight on dark bg */
 .leaflet-control-attribution {

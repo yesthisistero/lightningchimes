@@ -27,6 +27,7 @@ export type CenterChangeCallback = (lat: number, lon: number) => void;
 export class StrikeMap {
   private map: L.Map;
   private centerMarker: L.Marker;
+  private radiusCircle: L.Circle | null  = null;
   private onCenterChange?: CenterChangeCallback;
 
   // Heatmap
@@ -55,24 +56,48 @@ export class StrikeMap {
       maxZoom: 19,
     }).addTo(this.map);
 
-    // Draggable centre pin
+    // Centre pin — click on map to reposition, no drag
     this.centerMarker = L.marker([lat, lon], {
       icon:          this.makeCenterIcon(),
-      draggable:     true,
-      title:         'Drag to move centre point',
+      draggable:     false,
+      interactive:   true,
       zIndexOffset:  1000,
     }).addTo(this.map);
 
-    this.centerMarker.on('dragend', () => {
-      const pos = this.centerMarker.getLatLng();
-      this.onCenterChange?.(pos.lat, pos.lng);
+    // Prevent map click from firing when the pin itself is clicked
+    this.centerMarker.on('click', (e) => L.DomEvent.stopPropagation(e));
+
+    // Click anywhere on the map to move the centre
+    this.map.on('click', (e: L.LeafletMouseEvent) => {
+      const { lat, lng } = e.latlng;
+      this.centerMarker.setLatLng([lat, lng]);
+      this.radiusCircle?.setLatLng([lat, lng]);
+      this.onCenterChange?.(lat, lng);
     });
   }
 
-  /** Move the centre pin (called when the user connects a new source). */
+  /** Move the centre pin and radius circle programmatically. */
   setCenter(lat: number, lon: number): void {
     this.map.setView([lat, lon], this.map.getZoom());
     this.centerMarker.setLatLng([lat, lon]);
+    this.radiusCircle?.setLatLng([lat, lon]);
+  }
+
+  /** Show a radius circle around the centre. Pass null to hide it. */
+  setRadius(km: number | null): void {
+    this.radiusCircle?.remove();
+    this.radiusCircle = null;
+    if (km !== null) {
+      this.radiusCircle = L.circle(this.centerMarker.getLatLng(), {
+        radius:      km * 1000,
+        color:       '#4fc3f7',
+        weight:      1.5,
+        opacity:     0.5,
+        fillColor:   '#4fc3f7',
+        fillOpacity: 0.04,
+        interactive: false,
+      }).addTo(this.map);
+    }
   }
 
   /** Add a fading marker for an incoming strike. */
@@ -160,9 +185,9 @@ export class StrikeMap {
   private makeCenterIcon(): L.DivIcon {
     return L.divIcon({
       className: 'center-pin',
-      html:      '<div class="center-pin-ring"></div>',
-      iconSize:  [28, 28],
-      iconAnchor:[14, 14],
+      html:      '<div class="center-crosshair"></div>',
+      iconSize:  [16, 16],
+      iconAnchor:[8, 8],
     });
   }
 }
