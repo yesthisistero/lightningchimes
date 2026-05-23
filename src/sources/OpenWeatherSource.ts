@@ -56,10 +56,14 @@ export const openWeatherConfig: SourceConfig = {
     },
     {
       key: 'radius',
-      label: 'Radius (km, max 50)',
-      type: 'number',
-      default: 50,
-      placeholder: 'e.g. 50',
+      label: 'Scan radius',
+      type: 'select',
+      default: 300,
+      options: [
+        { value: '100', label: '100 km' },
+        { value: '300', label: '300 km' },
+        { value: '500', label: '500 km' },
+      ],
     },
     {
       key: 'interval',
@@ -104,7 +108,7 @@ export class OpenWeatherSource implements IDataSource {
   async connect(settings: Record<string, string | number>): Promise<void> {
     const lat      = Number(settings.lat      ?? 48.0);
     const lon      = Number(settings.lon      ?? 11.0);
-    const radius   = Math.min(50, Math.max(1, Number(settings.radius ?? 50)));
+    const radius   = Math.max(1, Number(settings.radius ?? 300));
     const interval = Math.max(60, Number(settings.interval ?? 240)) * 1000;
     const apiKey   = String(settings.apiKey   ?? ENV_KEY);
 
