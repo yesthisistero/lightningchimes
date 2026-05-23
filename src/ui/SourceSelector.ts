@@ -8,6 +8,7 @@ export class SourceSelector {
   private onConnect: SourceChangeHandler;
   private onDisconnect: () => void;
   private currentSourceId: string | null = null;
+  private fieldExtras: Map<string, HTMLElement> = new Map();
 
   constructor(
     container: HTMLElement,
@@ -69,6 +70,20 @@ export class SourceSelector {
     });
   }
 
+  /** Inject `el` immediately after the row containing `field-{fieldKey}`. Re-injected on every re-render. */
+  setFieldExtra(fieldKey: string, el: HTMLElement | null): void {
+    if (el === null) this.fieldExtras.delete(fieldKey);
+    else this.fieldExtras.set(fieldKey, el);
+    this.injectExtras();
+  }
+
+  private injectExtras(): void {
+    for (const [key, el] of this.fieldExtras) {
+      const row = document.getElementById(`field-${key}`)?.closest('.field-row') as HTMLElement | null;
+      if (row) row.after(el);
+    }
+  }
+
   private renderFields(cfg: SourceConfig) {
     const desc = document.getElementById('source-desc')!;
     desc.textContent = cfg.description;
@@ -105,6 +120,7 @@ export class SourceSelector {
       row.append(label, input);
       container.appendChild(row);
     });
+    this.injectExtras();
   }
 
   private readFields(cfg: SourceConfig): Record<string, string | number> {
