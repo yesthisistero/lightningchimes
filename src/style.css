@@ -269,6 +269,40 @@ input[type="range"]::-webkit-slider-thumb {
   align-items: center;
 }
 
+/* --------------------------------------------------------- panel header -- */
+
+.panel-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+.panel-header-row h2 { margin-bottom: 0; }
+
+/* Toggle button — sits in panel headers, indicates on/off state */
+.btn-toggle {
+  font-size: 0.75rem;
+  font-family: inherit;
+  padding: 0.3rem 0.8rem;
+  border-radius: 20px;
+  border: 1px solid #1e2d45;
+  background: transparent;
+  color: #6b7a99;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
+  letter-spacing: 0.02em;
+}
+.btn-toggle:hover {
+  border-color: #4fc3f7;
+  color: #c9d4e8;
+}
+.btn-toggle.active {
+  background: rgba(79, 195, 247, 0.12);
+  border-color: #4fc3f7;
+  color: #4fc3f7;
+  box-shadow: 0 0 8px rgba(79, 195, 247, 0.25);
+}
+
 /* ------------------------------------------------------------------ map -- */
 
 #strike-map {

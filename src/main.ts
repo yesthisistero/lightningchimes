@@ -153,7 +153,10 @@ app.innerHTML = `
     </section>
 
     <section class="panel full-width" id="map-panel">
-      <h2>Map</h2>
+      <div class="panel-header-row">
+        <h2>Map</h2>
+        <button id="heatmap-toggle" class="btn-toggle" aria-pressed="false">Heatmap</button>
+      </div>
       <p class="panel-hint">Drag the blue pin to move the centre point. Reconnect to apply the new position.</p>
       <div id="strike-map"></div>
     </section>
@@ -271,6 +274,15 @@ const strikeMap = new StrikeMap(
     Settings.save({ centerLat: lat, centerLon: lon });
   }
 );
+
+// --- Heatmap toggle ---
+const heatmapToggle = document.getElementById('heatmap-toggle') as HTMLButtonElement;
+heatmapToggle.addEventListener('click', () => {
+  const on = heatmapToggle.getAttribute('aria-pressed') !== 'true';
+  heatmapToggle.setAttribute('aria-pressed', String(on));
+  heatmapToggle.classList.toggle('active', on);
+  strikeMap.setHeatmap(on);
+});
 
 // --- Audio ---
 let visibilityListenerSetUp = false;

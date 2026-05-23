@@ -1,5 +1,6 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet.heat';
 import type { LightningStrike } from '../types/lightning';
 
 // Leaflet's default marker icons reference image files by path that Vite rewrites.
@@ -7,9 +8,19 @@ import type { LightningStrike } from '../types/lightning';
 // errors if Leaflet tries to resolve them internally.
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)['_getIconUrl'];
 
-const MARKER_HOLD_MS  = 2_500;   // ms at full opacity before fade begins
-const MARKER_FADE_MS  = 7_500;   // CSS transition duration
-const MARKER_TOTAL_MS = MARKER_HOLD_MS + MARKER_FADE_MS + 200;  // when to remove from DOM
+const MARKER_HOLD_MS  = 2_500;
+const MARKER_FADE_MS  = 7_500;
+const MARKER_TOTAL_MS = MARKER_HOLD_MS + MARKER_FADE_MS + 200;
+
+const MAX_HEAT_POINTS = 500;
+
+// Gradient: sparse → violet → electric blue → amber. Transparent below 0.15.
+const HEAT_GRADIENT: L.ColorGradientConfig = {
+  0.15: '#7c4dff',
+  0.45: '#4fc3f7',
+  0.75: '#f9a825',
+  1.00: '#ff6d00',
+};
 
 export type CenterChangeCallback = (lat: number, lon: number) => void;
 
@@ -17,6 +28,11 @@ export class StrikeMap {
   private map: L.Map;
   private centerMarker: L.Marker;
   private onCenterChange?: CenterChangeCallback;
+
+  // Heatmap
+  private heatPoints: L.HeatLatLngTuple[] = [];
+  private heatLayer: L.HeatLayer | null   = null;
+  private heatVisible                     = false;
 
   constructor(
     containerId: string,
@@ -61,12 +77,18 @@ export class StrikeMap {
 
   /** Add a fading marker for an incoming strike. */
   addStrike(strike: LightningStrike): void {
-    const color =
-      strike.polarity ===  1 ? '#f9a825' :  // positive → amber
-      strike.polarity === -1 ? '#7c4dff' :  // negative → violet
-                               '#4fc3f7';   // unknown  → accent blue
+    // --- heatmap accumulation ---
+    const intensity = strike.amplitude > 0 ? Math.min(1, strike.amplitude / 200) : 0.5;
+    this.heatPoints.push([strike.lat, strike.lon, intensity]);
+    if (this.heatPoints.length > MAX_HEAT_POINTS) this.heatPoints.shift();
+    if (this.heatVisible && this.heatLayer) this.heatLayer.setLatLngs(this.heatPoints);
 
-    // Size 6–18 px — scales with amplitude; unknown amplitude → mid-range
+    // --- fading dot marker ---
+    const color =
+      strike.polarity ===  1 ? '#f9a825' :
+      strike.polarity === -1 ? '#7c4dff' :
+                               '#4fc3f7';
+
     const normAmp = strike.amplitude > 0 ? Math.min(1, strike.amplitude / 200) : 0.5;
     const size    = Math.round(6 + normAmp * 12);
     const glow    = size + 4;
@@ -109,6 +131,25 @@ export class StrikeMap {
       clearTimeout(holdTimer);
       clearTimeout(removeTimer);
     });
+  }
+
+  /** Show or hide the heatmap layer. */
+  setHeatmap(on: boolean): void {
+    this.heatVisible = on;
+    if (on) {
+      if (!this.heatLayer) {
+        this.heatLayer = L.heatLayer(this.heatPoints, {
+          radius:     22,
+          blur:       16,
+          minOpacity: 0.3,
+          gradient:   HEAT_GRADIENT,
+        }).addTo(this.map);
+      } else {
+        this.heatLayer.setLatLngs(this.heatPoints).addTo(this.map);
+      }
+    } else {
+      this.heatLayer?.remove();
+    }
   }
 
   /** Call after the container becomes visible or is resized. */
