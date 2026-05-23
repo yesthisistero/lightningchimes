@@ -34,7 +34,7 @@ const health = new SourceHealth();
 const app = document.getElementById('app')!;
 app.innerHTML = `
   <header>
-    <h1>&#9889; Lightning Chime</h1>
+    <h1>&#9889; Lightning Chimes</h1>
     <p class="subtitle">Real-time lightning data transformed into sound</p>
   </header>
 
@@ -389,7 +389,7 @@ document.getElementById('load-snapshot-input')!.addEventListener('change', (e) =
 
       // Basic validation
       if (data.version !== 1 || !data.mapping || !data.preset) {
-        alert('This file doesn\'t look like a Lightning Chime snapshot.');
+        alert('This file doesn\'t look like a Lightning Chimes snapshot.');
         return;
       }
 
