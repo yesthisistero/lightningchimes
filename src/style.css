@@ -343,8 +343,8 @@ input[type="range"]::-webkit-slider-thumb {
   background: #0d1424;
 }
 
-/* Leaflet tile layer dark tint — makes OSM tiles sit better on dark UI */
-.leaflet-tile-pane { filter: brightness(0.82) saturate(0.7) hue-rotate(195deg); }
+/* Slight desaturation to blend CartoDB Dark Matter into the app palette */
+.leaflet-tile-pane { filter: saturate(0.8) brightness(0.9); }
 
 /* Override Leaflet's default white DivIcon background */
 .strike-marker,
