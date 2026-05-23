@@ -201,9 +201,6 @@ const selector = new SourceSelector(
       Settings.setSourceSettings(sourceId, sourceSettings);
       if (sourceId === 'openweather') {
         (sources['openweather'] as OpenWeatherSource).onPollTick = animatePollBar;
-        strikeMap.setRadius(Number(sourceSettings.radius ?? 300));
-      } else {
-        strikeMap.setRadius(null);
       }
     } catch (e) {
       setStatus('error', `Connection failed: ${(e as Error).message}`);
@@ -220,7 +217,6 @@ const selector = new SourceSelector(
     selector.setConnected(null);
     health.reset();
     updateHealthDisplay();
-    strikeMap.setRadius(null);
     setStatus('disconnected', 'Disconnected');
     resetPollBar();
   }
@@ -236,6 +232,22 @@ pollCountdownEl.innerHTML =
 const pollBarEl = pollCountdownEl.querySelector('#poll-bar') as HTMLElement;
 
 selector.setFieldExtra('interval', pollCountdownEl);
+
+// --- Radius circle visibility (OpenWeather only) ---
+function syncRadiusCircle(): void {
+  const sourceId = (document.getElementById('source-select') as HTMLSelectElement | null)?.value;
+  if (sourceId !== 'openweather') { strikeMap.setRadius(null); return; }
+  const km = Number((document.getElementById('field-radius') as HTMLSelectElement | null)?.value ?? 300);
+  strikeMap.setRadius(km);
+}
+
+// Show/hide when source dropdown changes
+document.getElementById('source-select')!.addEventListener('change', syncRadiusCircle);
+
+// Resize when radius field changes (event bubbles up from inside #source-selector)
+selectorContainer.addEventListener('change', (e) => {
+  if ((e.target as HTMLElement).id === 'field-radius') syncRadiusCircle();
+});
 
 function animatePollBar(intervalMs: number) {
   pollBarEl.style.transition = 'none';
