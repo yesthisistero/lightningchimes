@@ -237,6 +237,9 @@ export class StrikeMap {
     // we no-op it here and handle snap-back ourselves.
     (this.map as unknown as Record<string, () => void>)._panInsideBoundsIfNeeded = () => {};
 
+    // Drive the edge vignette every time the map moves
+    this.map.on('move', () => this.updateVignette());
+
     // Cancel any in-progress spring animation if the user grabs the map again
     this.map.on('dragstart', () => { this.snapActive = false; });
 
@@ -277,6 +280,22 @@ export class StrikeMap {
     // Inertia deceleration: low friction → long glide (≈500 px/s²), high → quick stop (≈10 000)
     (this.map.options as L.MapOptions).inertiaDeceleration =
       500 + (friction / 100) * 9_500;
+  }
+
+  /**
+   * Set per-edge vignette opacity via CSS custom properties on the map container.
+   * Each variable is 0 inside world bounds and ramps linearly to 1 at maxPull degrees
+   * past the edge — so each gradient only appears on the stretched side(s).
+   */
+  private updateVignette(): void {
+    const el   = this.map.getContainer();
+    const c    = this.map.getCenter();
+    const pull = Math.max(1, this.rbParams.maxPull);
+    const clamp = (v: number) => Math.min(1, Math.max(0, v));
+    el.style.setProperty('--vg-w', String(clamp((-180 - c.lng) / pull)));
+    el.style.setProperty('--vg-e', String(clamp((c.lng  - 180) / pull)));
+    el.style.setProperty('--vg-n', String(clamp((c.lat  -  90) / pull)));
+    el.style.setProperty('--vg-s', String(clamp((-90   - c.lat) / pull)));
   }
 
   private isPastWorld(c: L.LatLng): boolean {
