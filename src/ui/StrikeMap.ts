@@ -74,6 +74,9 @@ export class StrikeMap {
       const { lat, lng } = e.latlng;
       this.centerMarker.setLatLng([lat, lng]);
       this.radiusCircle?.setLatLng([lat, lng]);
+      if (this.radiusCircle) {
+        this.map.fitBounds(this.radiusCircle.getBounds(), { padding: [20, 20] });
+      }
       this.onCenterChange?.(lat, lng);
     });
   }
@@ -99,6 +102,8 @@ export class StrikeMap {
         fillOpacity: 0.04,
         interactive: false,
       }).addTo(this.map);
+      // Zoom map so the full circle fits horizontally
+      this.map.fitBounds(this.radiusCircle.getBounds(), { padding: [20, 20] });
     }
   }
 

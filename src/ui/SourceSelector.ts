@@ -132,6 +132,15 @@ export class SourceSelector {
     return result;
   }
 
+  /** Returns the currently selected source ID and its field values — used for auto-reconnect. */
+  getConnectionParams(): { sourceId: string; settings: Record<string, string | number> } | null {
+    const select = document.getElementById('source-select') as HTMLSelectElement | null;
+    if (!select) return null;
+    const cfg = this.configs.find((c) => c.id === select.value);
+    if (!cfg) return null;
+    return { sourceId: cfg.id, settings: this.readFields(cfg) };
+  }
+
   private updateButton(connectedId: string | null) {
     const btn = document.getElementById('connect-btn') as HTMLButtonElement;
     if (!btn) return;

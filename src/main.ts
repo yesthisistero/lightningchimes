@@ -21,9 +21,9 @@ const mapper = new SoundMapper();
 const strikeQueue = new StrikeQueue({ maxStrikesPerSecond: 8, maxPolyphony: 12 });
 
 const sources: Record<string, IDataSource> = {
-  simulated:   new SimulatedSource(),
   blitzortung: new BlitzortungSource(),
   openweather: new OpenWeatherSource(),
+  simulated:   new SimulatedSource(),
 };
 
 let activeSource: IDataSource | null = null;
@@ -313,13 +313,49 @@ const strikeMap = new StrikeMap(
   saved.centerLat,
   saved.centerLon,
   (lat, lon) => {
-    // Update source config fields if they exist (lat/lon inputs in source selector)
+    // Update source config fields so they reflect the new centre
     const latEl = document.getElementById('field-lat') as HTMLInputElement | null;
     const lonEl = document.getElementById('field-lon') as HTMLInputElement | null;
     if (latEl) latEl.value = lat.toFixed(5);
     if (lonEl) lonEl.value = lon.toFixed(5);
     // Persist updated centre so it survives a page reload
     Settings.save({ centerLat: lat, centerLon: lon });
+    mapper.setCenter(lat, lon);
+
+    // Auto-reconnect only if the user is currently connected; if disconnected, stay disconnected
+    if (activeSource) {
+      const params = selector.getConnectionParams();
+      if (params) {
+        const { sourceId, settings } = params;
+        void (async () => {
+          const prev = activeSource!;
+          prev.offStrike(onStrike);
+          await prev.disconnect();
+          resetPollBar();
+          health.reset();
+          updateHealthDisplay();
+
+          activeSource = sources[sourceId];
+          setStatus('connecting', 'Reconnecting…');
+          try {
+            await activeSource.connect(settings);
+            mapper.setCapabilities(activeSource.capabilities);
+            activeSource.onStrike(onStrike);
+            selector.setConnected(sourceId);
+            setStatus('connected', `Connected · ${activeSource.config.label}`);
+            Settings.save({ lastSourceId: sourceId, centerLat: lat, centerLon: lon });
+            Settings.setSourceSettings(sourceId, settings);
+            if (sourceId === 'openweather') {
+              (sources['openweather'] as OpenWeatherSource).onPollTick = animatePollBar;
+            }
+          } catch (e) {
+            setStatus('error', `Reconnect failed: ${(e as Error).message}`);
+            activeSource = null;
+            selector.setConnected(null);
+          }
+        })();
+      }
+    }
   }
 );
 
