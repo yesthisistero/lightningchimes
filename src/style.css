@@ -398,6 +398,28 @@ input[type="range"]::-webkit-slider-thumb {
 }
 .leaflet-control-zoom a:hover { background: #1e2d45 !important; }
 
+/* -------------------------------------------- map edge vignette / fade -- */
+/*
+ * Sits at z-index 450 — above tile pane (200) and heatmap/overlay pane (400)
+ * so tiles and heatmap fade at the edges, but below marker pane (600) and
+ * control container (800) so strike pins and the Spring overlay stay crisp.
+ *
+ * During normal viewing this is a subtle dark frame.
+ * During rubber-band overshoot the repeated tiles beneath fade to background.
+ */
+#strike-map::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 450;
+  background:
+    linear-gradient(to right,  #0a0e1a 0%, transparent 16%),
+    linear-gradient(to left,   #0a0e1a 0%, transparent 16%),
+    linear-gradient(to bottom, #0a0e1a 0%, transparent 12%),
+    linear-gradient(to top,    #0a0e1a 0%, transparent 12%);
+}
+
 /* -------------------------------------------------- rubber-band overlay -- */
 
 .rb-panel {

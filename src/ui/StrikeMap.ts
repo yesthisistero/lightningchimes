@@ -91,7 +91,8 @@ export class StrikeMap {
         '&copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
       subdomains: 'abcd',
       maxZoom: 19,
-      noWrap: true,
+      // noWrap intentionally omitted — tiles repeat in the rubber-band spring zone,
+      // fading out via the #strike-map::after vignette overlay in CSS.
     }).addTo(this.map);
 
     // Centre pin — click on map to reposition, no drag
