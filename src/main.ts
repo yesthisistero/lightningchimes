@@ -233,12 +233,16 @@ const pollBarEl = pollCountdownEl.querySelector('#poll-bar') as HTMLElement;
 
 selector.setFieldExtra('interval', pollCountdownEl);
 
-// --- Radius circle visibility (OpenWeather only) ---
+// --- Radius circle visibility (OpenWeather + Blitzortung) ---
 function syncRadiusCircle(): void {
   const sourceId = (document.getElementById('source-select') as HTMLSelectElement | null)?.value;
-  if (sourceId !== 'openweather') { strikeMap.setRadius(null); return; }
+  if (sourceId !== 'openweather' && sourceId !== 'blitzortung') {
+    strikeMap.setRadius(null);
+    return;
+  }
   const km = Number((document.getElementById('field-radius') as HTMLSelectElement | null)?.value ?? 300);
-  strikeMap.setRadius(km);
+  // km === 0 means "Global" (no filter) — hide the circle
+  strikeMap.setRadius(km === 0 ? null : km);
 }
 
 // Show/hide when source dropdown changes
