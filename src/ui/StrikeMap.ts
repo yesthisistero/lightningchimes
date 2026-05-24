@@ -67,8 +67,9 @@ export class StrikeMap {
   private heatVisible                     = false;
 
   // Rubber-band
-  private rbParams: RubberBandParams = { ...RB_DEFAULTS };
-  private snapActive                 = false;
+  private rbParams:      RubberBandParams = { ...RB_DEFAULTS };
+  private snapActive                      = false;
+  private snapGeneration                  = 0;   // incremented to cancel any running animation
 
   constructor(
     containerId: string,
@@ -111,6 +112,7 @@ export class StrikeMap {
       const { lat, lng } = e.latlng;
       this.centerMarker.setLatLng([lat, lng]);
       this.radiusCircle?.setLatLng([lat, lng]);
+      this.springTo(L.latLng(lat, lng));   // pan view to new centre using spring params
       this.onCenterChange?.(lat, lng);
     });
 
@@ -257,7 +259,7 @@ export class StrikeMap {
     (this.map as unknown as Record<string, () => void>)._panInsideBoundsIfNeeded = () => {};
 
     // Cancel any in-progress spring animation if the user grabs the map again
-    this.map.on('dragstart', () => { this.snapActive = false; });
+    this.map.on('dragstart', () => { this.snapActive = false; this.snapGeneration++; });
 
     // After drag ends, spring back if the centre is outside the real world bounds
     this.map.on('dragend', () => {
@@ -316,12 +318,13 @@ export class StrikeMap {
     const dLng  = to.lng - from.lng;
     const start = performance.now();
     this.snapActive = true;
+    const gen = ++this.snapGeneration;
 
     // Map overshoot 0–40 → Penner s-param 0–1.70158
     const s = (overshoot / 40) * 1.70158;
 
     const frame = (now: number) => {
-      if (!this.snapActive) return;
+      if (!this.snapActive || this.snapGeneration !== gen) return;
       const t  = Math.min(1, (now - start) / snapDuration);
       const et = overshoot === 0
         ? 1 - Math.pow(1 - t, 3)    // ease-out cubic when no overshoot requested
