@@ -202,6 +202,7 @@ const selector = new SourceSelector(
       if (sourceId === 'openweather') {
         (sources['openweather'] as OpenWeatherSource).onPollTick = animatePollBar;
       }
+      syncRadiusCircle();
     } catch (e) {
       setStatus('error', `Connection failed: ${(e as Error).message}`);
       activeSource = null;
@@ -358,6 +359,10 @@ const strikeMap = new StrikeMap(
     }
   }
 );
+
+// Show initial radius circle once the map has laid out (rAF ensures Leaflet
+// has computed pixel dimensions before fitBounds is called)
+requestAnimationFrame(() => syncRadiusCircle());
 
 // --- Heatmap toggle ---
 const heatmapToggle = document.getElementById('heatmap-toggle') as HTMLButtonElement;

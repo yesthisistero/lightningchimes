@@ -102,6 +102,8 @@ export class StrikeMap {
         fillOpacity: 0.04,
         interactive: false,
       }).addTo(this.map);
+      // Ensure Leaflet has measured the container before computing the zoom level
+      this.map.invalidateSize();
       // Zoom map so the full circle fits horizontally
       this.map.fitBounds(this.radiusCircle.getBounds(), { padding: [20, 20] });
     }
