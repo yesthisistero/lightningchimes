@@ -398,6 +398,84 @@ input[type="range"]::-webkit-slider-thumb {
 }
 .leaflet-control-zoom a:hover { background: #1e2d45 !important; }
 
+/* -------------------------------------------------- rubber-band overlay -- */
+
+.rb-panel {
+  /* Leaflet bottomleft control — grows upward from the corner */
+  background: rgba(11, 16, 30, 0.88);
+  border: 1px solid var(--bg-panel-border);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+  overflow: hidden;
+  min-width: 44px;
+}
+
+.rb-toggle {
+  display: block;
+  width: 100%;
+  padding: 7px 11px;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-family: var(--font);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  white-space: nowrap;
+  text-align: left;
+  transition: color 0.15s;
+}
+.rb-toggle:hover { color: var(--text); }
+.rb-toggle.active { color: var(--accent); }
+
+.rb-body {
+  padding: 10px 12px 12px;
+  border-bottom: 1px solid var(--bg-panel-border);
+}
+
+.rb-heading {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+
+.rb-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 7px;
+}
+.rb-row:last-child { margin-bottom: 0; }
+
+.rb-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  min-width: 68px;
+}
+
+.rb-row .rb-slider {
+  flex: 1;
+  min-width: 80px;
+}
+
+.rb-val {
+  font-size: 11px;
+  color: var(--accent);
+  min-width: 26px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.rb-unit {
+  font-size: 10px;
+  color: var(--text-dim);
+  min-width: 14px;
+}
+
 @media (max-width: 800px) {
   main { grid-template-columns: 1fr; }
   .full-width { grid-column: 1; }

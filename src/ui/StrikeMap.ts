@@ -14,7 +14,6 @@ const MARKER_TOTAL_MS = MARKER_HOLD_MS + MARKER_FADE_MS + 200;
 
 const MAX_HEAT_POINTS = 500;
 
-// Gradient: sparse → violet → electric blue → amber. Transparent below 0.15.
 const HEAT_GRADIENT: L.ColorGradientConfig = {
   0.15: '#7c4dff',
   0.45: '#4fc3f7',
@@ -23,6 +22,38 @@ const HEAT_GRADIENT: L.ColorGradientConfig = {
 };
 
 export type CenterChangeCallback = (lat: number, lon: number) => void;
+
+// --------------------------------------------------- rubber-band parameters --
+
+export interface RubberBandParams {
+  /** Resistance felt while dragging past the world edge — 0 = silky loose, 100 = nearly rigid */
+  resistance:   number;
+  /** Hard stop distance beyond the world edge in degrees — how far you can stretch before it blocks */
+  maxPull:      number;
+  /** Spring-back animation duration in ms */
+  snapDuration: number;
+  /** Bounce overshoot before settling — 0 = ease-out only, 40 = strong spring */
+  overshoot:    number;
+  /** Momentum friction after a fast flick — 0 = glides far, 100 = stops immediately */
+  friction:     number;
+}
+
+const RB_DEFAULTS: RubberBandParams = {
+  resistance:   40,
+  maxPull:      25,
+  snapDuration: 380,
+  overshoot:    14,
+  friction:     45,
+};
+
+// Penner back ease-out: reaches 1.0 at t=1, overshoots by ~s * 0.064 around t=0.7.
+// s = 0 → smooth ease-out cubic; s = 1.70158 → classic spring overshoot.
+function easeOutBack(t: number, s: number): number {
+  const u = t - 1;
+  return 1 + u * u * ((s + 1) * u + s);
+}
+
+// ------------------------------------------------------------------ class --
 
 export class StrikeMap {
   private map: L.Map;
@@ -34,6 +65,10 @@ export class StrikeMap {
   private heatPoints: L.HeatLatLngTuple[] = [];
   private heatLayer: L.HeatLayer | null   = null;
   private heatVisible                     = false;
+
+  // Rubber-band
+  private rbParams: RubberBandParams = { ...RB_DEFAULTS };
+  private snapActive                 = false;
 
   constructor(
     containerId: string,
@@ -48,9 +83,6 @@ export class StrikeMap {
       zoom: 8,
       zoomControl: true,
       attributionControl: true,
-      // Restrict panning to a single world copy — no repeating tiles
-      maxBounds: [[-90, -180], [90, 180]],
-      maxBoundsViscosity: 1.0,   // hard wall at the edges, no rubber-band
     });
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -59,7 +91,7 @@ export class StrikeMap {
         '&copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
       subdomains: 'abcd',
       maxZoom: 19,
-      noWrap: true,  // don't render tile copies outside [-180, 180]
+      noWrap: true,
     }).addTo(this.map);
 
     // Centre pin — click on map to reposition, no drag
@@ -83,7 +115,11 @@ export class StrikeMap {
       }
       this.onCenterChange?.(lat, lng);
     });
+
+    this.setupRubberBand();
   }
+
+  // ----------------------------------------------------------------- public --
 
   /** Move the centre pin and radius circle programmatically. */
   setCenter(lat: number, lon: number): void {
@@ -106,9 +142,7 @@ export class StrikeMap {
         fillOpacity: 0.04,
         interactive: false,
       }).addTo(this.map);
-      // Ensure Leaflet has measured the container before computing the zoom level
       this.map.invalidateSize();
-      // Zoom map so the full circle fits horizontally
       this.map.fitBounds(this.radiusCircle.getBounds(), { padding: [20, 20] });
     }
   }
@@ -150,7 +184,6 @@ export class StrikeMap {
       keyboard:    false,
     }).addTo(this.map);
 
-    // Begin fade after hold period
     const holdTimer = setTimeout(() => {
       const el = marker.getElement();
       if (el) {
@@ -159,12 +192,10 @@ export class StrikeMap {
       }
     }, MARKER_HOLD_MS);
 
-    // Remove element from map once fully faded
     const removeTimer = setTimeout(() => {
       marker.remove();
     }, MARKER_TOTAL_MS);
 
-    // Safety: if the component is destroyed before timers fire, clean up
     marker.once('remove', () => {
       clearTimeout(holdTimer);
       clearTimeout(removeTimer);
@@ -194,6 +225,183 @@ export class StrikeMap {
   invalidateSize(): void {
     this.map.invalidateSize();
   }
+
+  // --------------------------------------------------------- rubber-band --
+
+  private setupRubberBand(): void {
+    this.applyRbOptions();
+
+    // Replace Leaflet's own flat pan-inside-bounds with our custom spring.
+    // Leaflet calls _panInsideBoundsIfNeeded() at the end of every drag event;
+    // we no-op it here and handle snap-back ourselves.
+    (this.map as unknown as Record<string, () => void>)._panInsideBoundsIfNeeded = () => {};
+
+    // Cancel any in-progress spring animation if the user grabs the map again
+    this.map.on('dragstart', () => { this.snapActive = false; });
+
+    // After drag ends, spring back if the centre is outside the real world bounds
+    this.map.on('dragend', () => {
+      if (this.isPastWorld(this.map.getCenter())) {
+        this.springTo(this.clampToWorld(this.map.getCenter()));
+      }
+    });
+
+    this.buildRbControl().addTo(this.map);
+  }
+
+  /**
+   * Push current params into Leaflet's option object.
+   *
+   * • resistance  → maxBoundsViscosity at the real world edge (drag feel)
+   * • maxPull     → outer hard-stop boundary (expanded maxBounds)
+   * • friction    → inertia deceleration (momentum after flick)
+   *
+   * Leaflet reads these from map.options during the next drag, so the change
+   * takes effect immediately without needing to reconnect anything.
+   */
+  private applyRbOptions(): void {
+    const { resistance, maxPull, friction } = this.rbParams;
+
+    // Two-layer boundary:
+    //   Inner layer (real world) — viscosity creates rubber-band drag resistance
+    //   Outer layer (expanded)  — hard wall so the map can't stretch further than maxPull
+    (this.map.options as L.MapOptions).maxBounds = L.latLngBounds(
+      L.latLng(-90 - maxPull, -180 - maxPull),
+      L.latLng( 90 + maxPull,  180 + maxPull),
+    );
+    // Viscosity at outer wall: resistance param is re-used as a "stiffness" here.
+    // High resistance → very sticky outer wall AND snappier spring-back feel.
+    (this.map.options as L.MapOptions).maxBoundsViscosity = 0.3 + (resistance / 100) * 0.65;
+
+    // Inertia deceleration: low friction → long glide (≈500 px/s²), high → quick stop (≈10 000)
+    (this.map.options as L.MapOptions).inertiaDeceleration =
+      500 + (friction / 100) * 9_500;
+  }
+
+  private isPastWorld(c: L.LatLng): boolean {
+    return c.lat < -90 || c.lat > 90 || c.lng < -180 || c.lng > 180;
+  }
+
+  private clampToWorld(c: L.LatLng): L.LatLng {
+    return L.latLng(
+      Math.max(-90,  Math.min(90,   c.lat)),
+      Math.max(-180, Math.min(180,  c.lng)),
+    );
+  }
+
+  private springTo(to: L.LatLng): void {
+    const { snapDuration, overshoot } = this.rbParams;
+    const from  = this.map.getCenter();
+    const dLat  = to.lat - from.lat;
+    const dLng  = to.lng - from.lng;
+    const start = performance.now();
+    this.snapActive = true;
+
+    // Map overshoot 0–40 → Penner s-param 0–1.70158
+    const s = (overshoot / 40) * 1.70158;
+
+    const frame = (now: number) => {
+      if (!this.snapActive) return;
+      const t  = Math.min(1, (now - start) / snapDuration);
+      const et = overshoot === 0
+        ? 1 - Math.pow(1 - t, 3)    // ease-out cubic when no overshoot requested
+        : easeOutBack(t, s);
+
+      this.map.setView(
+        [from.lat + dLat * et, from.lng + dLng * et],
+        this.map.getZoom(),
+        { animate: false },
+      );
+
+      if (t < 1) {
+        requestAnimationFrame(frame);
+      } else {
+        this.snapActive = false;
+        // Hard-clamp at animation end to guarantee exact landing on world boundary
+        if (this.isPastWorld(this.map.getCenter())) {
+          this.map.setView(to, this.map.getZoom(), { animate: false });
+        }
+      }
+    };
+
+    requestAnimationFrame(frame);
+  }
+
+  // --------------------------------------------- floating overlay control --
+
+  private buildRbControl(): L.Control {
+    const self = this;
+
+    function sliderRow(
+      key:   keyof RubberBandParams,
+      label: string,
+      min:   number,
+      max:   number,
+      step:  number,
+      unit:  string,
+    ): string {
+      const val = self.rbParams[key];
+      return `
+        <div class="rb-row">
+          <span class="rb-label">${label}</span>
+          <input class="rb-slider" type="range"
+            data-rb="${key}" min="${min}" max="${max}" step="${step}" value="${val}">
+          <span class="rb-val" data-rbv="${key}">${val}</span>
+          <span class="rb-unit">${unit}</span>
+        </div>`;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const CtrlClass = (L.Control as any).extend({
+      options: { position: 'bottomleft' },
+
+      onAdd(): HTMLElement {
+        const wrap = L.DomUtil.create('div', 'rb-panel');
+        L.DomEvent.disableClickPropagation(wrap);
+        L.DomEvent.disableScrollPropagation(wrap);
+
+        // Body is first in DOM so it expands upward on screen when the
+        // control is anchored to the bottom-left corner.
+        wrap.innerHTML = `
+          <div class="rb-body hidden">
+            <div class="rb-heading">Edge spring</div>
+            ${sliderRow('resistance',   'Resistance',  0,   100, 5,  '%' )}
+            ${sliderRow('maxPull',      'Max pull',    2,   60,  2,  '°' )}
+            ${sliderRow('snapDuration', 'Snap',        80,  700, 10, 'ms')}
+            ${sliderRow('overshoot',    'Overshoot',   0,   40,  2,  '%' )}
+            ${sliderRow('friction',     'Friction',    0,   100, 5,  '%' )}
+          </div>
+          <button class="rb-toggle" title="Edge spring settings">&#9881;&nbsp;Spring</button>
+        `;
+
+        const toggle = wrap.querySelector('.rb-toggle') as HTMLButtonElement;
+        const body   = wrap.querySelector('.rb-body')   as HTMLElement;
+
+        toggle.addEventListener('click', () => {
+          const nowOpen = body.classList.toggle('rb-open');
+          body.classList.toggle('hidden', !nowOpen);
+          toggle.classList.toggle('active', nowOpen);
+        });
+
+        wrap.querySelectorAll<HTMLInputElement>('.rb-slider').forEach((slider) => {
+          slider.addEventListener('input', () => {
+            const key = slider.dataset.rb as keyof RubberBandParams;
+            const val = Number(slider.value);
+            self.rbParams[key] = val;
+            const valEl = wrap.querySelector(`[data-rbv="${key}"]`) as HTMLElement | null;
+            if (valEl) valEl.textContent = String(val);
+            self.applyRbOptions();
+          });
+        });
+
+        return wrap;
+      },
+    });
+
+    return new CtrlClass();
+  }
+
+  // ---------------------------------------------------------------- helpers --
 
   private makeCenterIcon(): L.DivIcon {
     return L.divIcon({
