@@ -398,29 +398,6 @@ input[type="range"]::-webkit-slider-thumb {
 }
 .leaflet-control-zoom a:hover { background: #1e2d45 !important; }
 
-/* -------------------------------------------- map edge vignette / fade -- */
-/*
- * Four directional gradients driven by CSS custom properties set from JS
- * (StrikeMap.updateVignette). Each variable is 0 when within world bounds
- * and ramps to 1 as the overshoot reaches maxPull degrees — so the fade
- * appears only on the side(s) currently stretched past the world edge.
- *
- * z-index 450 — above tiles (200) and heatmap/overlay (400),
- *              below markers (600) and control container (800).
- */
-#strike-map::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 450;
-  background:
-    linear-gradient(to right,  rgba(10,14,26, var(--vg-w, 0)) 0%, transparent 20%),
-    linear-gradient(to left,   rgba(10,14,26, var(--vg-e, 0)) 0%, transparent 20%),
-    linear-gradient(to bottom, rgba(10,14,26, var(--vg-n, 0)) 0%, transparent 16%),
-    linear-gradient(to top,    rgba(10,14,26, var(--vg-s, 0)) 0%, transparent 16%);
-}
-
 /* -------------------------------------------------- rubber-band overlay -- */
 
 .rb-panel {
