@@ -48,6 +48,9 @@ export class StrikeMap {
       zoom: 8,
       zoomControl: true,
       attributionControl: true,
+      // Restrict panning to a single world copy — no repeating tiles
+      maxBounds: [[-90, -180], [90, 180]],
+      maxBoundsViscosity: 1.0,   // hard wall at the edges, no rubber-band
     });
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -56,6 +59,7 @@ export class StrikeMap {
         '&copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
       subdomains: 'abcd',
       maxZoom: 19,
+      noWrap: true,  // don't render tile copies outside [-180, 180]
     }).addTo(this.map);
 
     // Centre pin — click on map to reposition, no drag
