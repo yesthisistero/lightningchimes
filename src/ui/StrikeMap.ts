@@ -106,14 +106,11 @@ export class StrikeMap {
     // Prevent map click from firing when the pin itself is clicked
     this.centerMarker.on('click', (e) => L.DomEvent.stopPropagation(e));
 
-    // Click anywhere on the map to move the centre
+    // Click anywhere on the map to move the centre — zoom is intentionally preserved
     this.map.on('click', (e: L.LeafletMouseEvent) => {
       const { lat, lng } = e.latlng;
       this.centerMarker.setLatLng([lat, lng]);
       this.radiusCircle?.setLatLng([lat, lng]);
-      if (this.radiusCircle) {
-        this.map.fitBounds(this.radiusCircle.getBounds(), { padding: [20, 20] });
-      }
       this.onCenterChange?.(lat, lng);
     });
 
@@ -143,8 +140,7 @@ export class StrikeMap {
         fillOpacity: 0.04,
         interactive: false,
       }).addTo(this.map);
-      this.map.invalidateSize();
-      this.map.fitBounds(this.radiusCircle.getBounds(), { padding: [20, 20] });
+      this.fitRadiusHorizontally();
     }
   }
 
@@ -225,6 +221,29 @@ export class StrikeMap {
   /** Call after the container becomes visible or is resized. */
   invalidateSize(): void {
     this.map.invalidateSize();
+  }
+
+  // ------------------------------------------------- horizontal zoom fit --
+
+  /**
+   * Zoom so the radius circle fills the map width, leaving the vertical
+   * dimension unconstrained (it may be cropped). Only called when the
+   * radius dropdown changes — not on centre-point moves.
+   */
+  private fitRadiusHorizontally(): void {
+    if (!this.radiusCircle) return;
+    this.map.invalidateSize();
+    const center = this.centerMarker.getLatLng();
+    const west   = this.radiusCircle.getBounds().getWest();
+    const east   = this.radiusCircle.getBounds().getEast();
+    // Nearly-flat bounds: latitude height ≈ 0 → vertical scale → ∞
+    // so getBoundsZoom picks the horizontal scale exclusively.
+    const hBounds = L.latLngBounds(
+      [center.lat - 0.0001, west],
+      [center.lat + 0.0001, east],
+    );
+    const zoom = this.map.getBoundsZoom(hBounds, false, L.point(32, 0));
+    this.map.setView(center, zoom, { animate: false });
   }
 
   // --------------------------------------------------------- rubber-band --
